@@ -1,4 +1,7 @@
 # Bot
 My own discord music bot.
 
-You have to replace the # with your discord bot token. My code has polish elements.
+Before you start using this code you have to:
+
+- install ffmpeg and add it to PATH. Website: https://www.gyan.dev/ffmpeg/builds/
+- istall **yt_dlp** and **discord** libraries. Just type pip install [NAME]

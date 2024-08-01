@@ -3,7 +3,6 @@ from discord.ext import commands
 import yt_dlp as youtube_dl
 import asyncio
 
-# Ustawienia yt-dlp
 ytdl_format_options = {
     'format': 'bestaudio/best',
     'outtmpl': '%(extractor)s-%(id)s-%(title)s.%(ext)s',
@@ -174,7 +173,6 @@ async def check_queue(ctx, playlist_name):
     if ctx.voice_client is not None and not ctx.voice_client.is_playing():
         await play_next_song(ctx, playlist_name)
 
-# Twój token bota
 TOKEN = '#'
 
 bot.run(TOKEN)

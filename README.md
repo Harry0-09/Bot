@@ -7,7 +7,7 @@ Before you start using this code you have to:
 - istall **yt_dlp** and **discord** libraries. Just type pip install [NAME] in cmd
 
 Commands:
-- [prefix]
+minus (-)[prefix]
 
 1) join - joins a voice chat (not necessary)
 2) opusc_nas - leaves a voice chat

@@ -4,23 +4,7 @@ import yt_dlp as youtube_dl
 import asyncio
 import json
 import os
-
-#  --------------------------------------------------------------------------- UPDATE 1.1 ---------------------------------------------------------------------------
-# What I added:
-# 1) saving playlists to json files and reading saved jsons (for root only)
-# 2) changed stop to skip and zatrzymaj to stop
-# 3) added some visual details like bolding titles, playlist names exc.
-# 4) added kolejka function which shows what is in given playlist
-
-# What I am working on?:
-# 1) deleting playlists from the database (i need to make it that only the creator of the playlist can delete his playlists)
-# 2) transfering my databases from flashdisk to google disk
-# 3) editing playlists
-# 4) not leaking my bot's token
-
-# Why can't I do that now?: Good quesion. Wait for the updates!
-
-# --------------------------------------------------------------------------- UPDATE 1.1 ---------------------------------------------------------------------------
+import aiohttp
 
 ytdl_format_options = {
     'format': 'bestaudio/best',
@@ -42,6 +26,10 @@ ffmpeg_options = {
     'options': '-vn'
 }
 
+UNIT_TESTS = []
+TARGET_ROLE_NAME = "Can I have DJ role?"
+
+
 ytdl = youtube_dl.YoutubeDL(ytdl_format_options)
 
 class YTDLSource(discord.PCMVolumeTransformer):
@@ -61,6 +49,7 @@ class YTDLSource(discord.PCMVolumeTransformer):
 
         filename = data['url'] if stream else ytdl.prepare_filename(data)
         return cls(discord.FFmpegPCMAudio(filename, **ffmpeg_options), data=data)
+    
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -84,6 +73,27 @@ async def join(ctx):
         channel = ctx.message.author.voice.channel
 
     await channel.connect()
+
+@bot.command(name='info', help='Wyswietla informacje o aktualnie lecacej piosence')
+async def info(ctx, *, piosenka):
+    async with ctx.typing():
+        try:
+
+            player = await YTDLSource.from_url(piosenka)
+            video_info = player.data
+
+            await ctx.send(f"Tytuł: **{video_info['title']}**\n"
+                f"Autor: **{video_info['uploader']}**\n"
+                f"Dlugosc: {round(float(video_info['duration'])/60, 2)} min\n"
+                f"Data wydania: {video_info['upload_date']}\n"
+                f"Wyswietlenia: {video_info['view_count']}\n"
+                f"Polubienia: {video_info.get('like_count', 'N/A')}\n"
+                f"Miniatura: {video_info['thumbnail']}\n"
+                f"FPS: {video_info['fps']}\n"
+                f"Wielkosc: {round(float(video_info['filesize'])/1048576, 2)} MB\n"
+                f"Srednia ocena: {video_info['average_rating']}")
+        except Exception as e:
+            await ctx.send(e)
 
 @bot.command(name='opusc_nas', help='Odlącza od kanału głosowego')
 async def leave(ctx):
@@ -147,11 +157,12 @@ async def create_playlist(ctx, playlist_name):
 
 @bot.command(name="zapisz_playliste", help="Zapisuje twoja playliste w systemie")
 async def zapisz_playliste(ctx, playlist_name):
-    if ctx.author.id == {Your discord ID (int)}:
+    role = discord.utils.get(ctx.message.author.roles, name=TARGET_ROLE_NAME)
+    if role is not None:
         if playlist_name in playlists:
             if playlists[playlist_name] != []:
-                if os.path.exists("[PATH]" + f"/{playlist_name}.json") == False:
-                    with open("[PATH]" + f"/{playlist_name}.json", "w") as file:
+                if os.path.exists("E:/Bot" + f"/{playlist_name}.json") == False:
+                    with open("E:/Bot" + f"/{playlist_name}.json", "w") as file:
                         json.dump(playlists[playlist_name], fp=file)
                         file.close()
                         await ctx.send(f"Pomyslnie zapisano playliste **{playlist_name}** w bazie")
@@ -182,16 +193,74 @@ async def delete_playlist(ctx, playlist_name):
 
 #@bot.command(name="usun_z_bazy", help="Usuwa playliste z bazy") working on auth
 
+@bot.command(name="edytuj_playlisteR", help='Pozwala ci edytowac playliste za pomoca strony')
+async def edytuj(ctx, playlist_name):
+    role = discord.utils.get(ctx.message.author.roles, name=TARGET_ROLE_NAME)
+    if role is not None:
+        if os.path.exists("E:/Bot/" + f"{playlist_name}.json"):
+            with open("E:/Bot/" + f"{playlist_name}.json") as f:
+                await ctx.send("Kolego, pobierasz ten pliczek, idziesz na " + "https://harry-music.glitch.me" + " nastepnie -wprowadz_poprawke i dropujesz plik")
+                await ctx.send(file=discord.File(f, f"{playlist_name}.json"))
+        else:
+            await ctx.send(f"Playlista {playlist_name} nie jest zapisana w bazie")
+    else:
+        await ctx.send("Ciagle pracuje nad podlaczeniem bota do chmury, lecz aktualnie jeszcze nie jestem gotowy na dokonanie operacji. W tym momencie tylko root moze uzywac tej funkcjonalnosci.")
+
+@bot.command(name="wprowadz_poprawke", help='Wprowadza poprawke do zapisanej w pliku playlisty')
+async def wprowadz_poprawke(ctx):
+    role = discord.utils.get(ctx.message.author.roles, name=TARGET_ROLE_NAME)
+    if role is not None:
+        for attachment in ctx.message.attachments:
+            if attachment.filename.endswith('.json'):
+                if os.path.exists("E:/Bot/" + f"{attachment.filename}"):
+                    async with aiohttp.ClientSession() as session:
+                        async with session.get(attachment.url) as resp:
+                            if resp.status == 200:
+                                json_content = await resp.json()
+                                try:
+                                    with open(f"E:/Bot/{attachment.filename}", "w") as file:
+                                        json.dump(json_content, file)
+                                        await ctx.send("Przetwarzanie pliku zakonczone powodzeniem")
+                                except Exception as e:
+                                    ctx.send(e)
+                            else:
+                                await ctx.send("Przetwazanie pliku zakonczone niepowodzeniem")
+                else:
+                    await ctx.send("Plik o takiej nazwie nie istnieje w bazie")
+            else:
+                await ctx.send("Plik, ktory zamieszczasz musi byc w formacie JSON")
+    else:
+        await ctx.send("Ciagle pracuje nad podlaczeniem bota do chmury, lecz aktualnie jeszcze nie jestem gotowy na dokonanie operacji. W tym momencie tylko root moze uzywac tej funkcjonalnosci.")
+                    
+@bot.command(name="edytuj_playliste", help='Pozwala ci edytowac playliste za pomoca indexow')
+async def edytuj(ctx, playlist_name, index):
+    if playlist_name != None and index != None:
+        if playlist_name in playlists:
+            try:
+                await ctx.send(playlists[playlist_name])
+                playlists[playlist_name].pop(int(index))
+                await ctx.send(playlists[playlist_name])
+            except Exception as e:
+                await ctx.send(f"Blad przy wykonywaniu operacji: **{e}**")
+        else:
+            await ctx.send("Ta playlista nie istnieje w pamieci lokalnej")
+    else:
+        await ctx.send("Input format: [NAZWA_PLAYLISTY], [INDEX_PIOSENKI_DO_WYWALENIA]")
+
 @bot.command(name="kolejka", help="Pokazuje kolejke aktualnej playlisty")
 async def kolejka(ctx, playlist_name):
     if playlist_name in playlists:
-        await ctx.send(f"Zawartosc playlisty **{playlist_name}**: {"; ".join(playlists[playlist_name])}")
+        await ctx.send(f"Zawartosc playlisty **{playlist_name}**: ")
+        for i in enumerate(playlists[playlist_name]):
+            await ctx.send(i)
+        #await ctx.send(f"Zawartosc playlisty **{playlist_name}**: {"; ".join(playlists[playlist_name])}")
     else:
         await ctx.send("Ta playlista nie istnieje")
 
 @bot.command(name="write_saved_playlist", help="Odtwarza zapisana playliste")
 async def play_saved_playlist(ctx, playlist_name):
-    if ctx.author.id == 781971452600909905:
+    role = discord.utils.get(ctx.message.author.roles, name=TARGET_ROLE_NAME)
+    if role is not None:
         if playlist_name not in playlists:
             if os.path.exists("E:/Bot" + f"/{playlist_name}.json"):
                 with open("E:/Bot" + f"/{playlist_name}.json", 'r') as file:
@@ -211,7 +280,6 @@ async def play_playlist(ctx, playlist_name):
     if playlist_name not in playlists or not playlists[playlist_name]:
         await ctx.send(f'Playlista o nazwie **{playlist_name}** nie istnieje lub jest pusta.')
         return
-
     if ctx.voice_client is None:
         if ctx.author.voice:
             await ctx.author.voice.channel.connect()
@@ -226,8 +294,7 @@ async def play_next_song(ctx, playlist_name):
     if playlist_name not in playlists or not playlists[playlist_name]:
         if playlist_name == None:
             await ctx.send("Zakonczono odtwarzanie utworu")
-            return
-        
+            return    
         await ctx.send(f'Playlista **{playlist_name}** zakończona.')
         return
 
@@ -237,11 +304,10 @@ async def play_next_song(ctx, playlist_name):
     ctx.voice_client.play(player, after=lambda e: bot.loop.create_task(check_queue(ctx, playlist_name)) if not e else print(f'**Błąd odtwarzania: {e}**'))
     await ctx.send(f'Odtwarzanie: **{player.title}**, link/prompt: {url}')
 
-
 async def check_queue(ctx, playlist_name):
     if ctx.voice_client is not None and not ctx.voice_client.is_playing():
         await play_next_song(ctx, playlist_name)
 
-TOKEN = '#'
+TOKEN = "#"
 
 bot.run(TOKEN)
